@@ -12,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.sql.DriverManager;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -145,6 +147,38 @@ public class DockerService {
 
     public boolean isContainerRunning(String containerId) {
         return "running".equalsIgnoreCase(getContainerStatus(containerId));
+    }
+
+    public void waitForReady(String engine, int port, String plainPassword, int timeoutSeconds) {
+        String jdbcUrl;
+        String user = "dbuser";
+
+        switch (engine.toLowerCase()) {
+            case "postgresql" -> jdbcUrl = "jdbc:postgresql://localhost:" + port + "/postgres";
+            case "mysql" -> jdbcUrl = "jdbc:mysql://localhost:" + port + "/mysql";
+            default -> throw new IllegalArgumentException("Unsupported engine: " + engine);
+        }
+
+        Instant deadline = Instant.now().plusSeconds(timeoutSeconds);
+        log.info("Waiting up to {}s for {} on port {} to become ready...",
+                timeoutSeconds, engine, port);
+
+        while (Instant.now().isBefore(deadline)) {
+            try {
+                DriverManager.getConnection(jdbcUrl, user, plainPassword).close();
+                log.info("{} on port {} is ready", engine, port);
+                return;
+            } catch (Exception e) {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Interrupted during readiness check", ie);
+                }
+            }
+        }
+
+        log.warn("{} on port {} did not become ready within {}s", engine, port, timeoutSeconds);
     }
 
     public String findContainerIdByName(String containerName) {

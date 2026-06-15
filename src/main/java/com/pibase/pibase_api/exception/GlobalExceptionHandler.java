@@ -42,6 +42,19 @@ public class GlobalExceptionHandler {
                 .body(new ApiError(400, message));
     }
 
+    @ExceptionHandler(ProvisioningException.class)
+    public ResponseEntity<ApiError> handleProvision(ProvisioningException ex) {
+        log.error("Provisioning error: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(new ApiError(503, ex.getMessage()));
+    }
+
+    @ExceptionHandler(QuotaExceededException.class)
+    public ResponseEntity<ApiError> handleQuota(QuotaExceededException ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(new ApiError(429, ex.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleGeneral(Exception ex) {
         log.error("Unhandled exception: {}", ex.getMessage(), ex);
