@@ -44,6 +44,14 @@ management:
 
 pibase:
   public-host: ${PUBLIC_HOST:localhost}
+  docker:
+    host: ${DOCKER_HOST:unix:///var/run/docker.sock}
+    max-connections: 10
+    connection-timeout-seconds: 30
+    response-timeout-seconds: 45
+    images:
+      postgresql: postgres:15-alpine
+      mysql: mysql:8.0
   jwt:
     secret: ${JWT_SECRET:pibase-dev-secret-key-must-be-at-least-256-bits-long-change-in-production}
     access-token-expiry: 15m

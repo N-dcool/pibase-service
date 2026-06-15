@@ -13,9 +13,26 @@ import java.time.Duration;
 public class PiBaseProperties {
 
     private String publicHost = "localhost";
+    private DockerProperties docker = new DockerProperties();
     private JwtProperties jwt = new JwtProperties();
     private ProvisioningProperties provisioning = new ProvisioningProperties();
     private PortProperties ports = new PortProperties();
+
+    @Data
+    public static class DockerProperties {
+        private String host = "unix:///var/run/docker.sock";
+        private int maxConnections = 10;
+        private int connectionTimeoutSeconds = 30;
+        private int responseTimeoutSeconds = 45;
+        private ImageProperties images = new ImageProperties();
+
+        @Data
+        public static class ImageProperties {
+            private String postgresql = "postgres:15-alpine";
+            private String mysql = "mysql:8.0";
+        }
+    }
+
 
     @Data
     public static class JwtProperties {

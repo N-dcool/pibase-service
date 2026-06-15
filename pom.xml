@@ -89,6 +89,17 @@
             <version>0.12.6</version>
             <scope>runtime</scope>
         </dependency>
+        <!-- Docker SDK (docker-java) -->
+        <dependency>
+            <groupId>com.github.docker-java</groupId>
+            <artifactId>docker-java-core</artifactId>
+            <version>3.7.1</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.docker-java</groupId>
+            <artifactId>docker-java-transport-httpclient5</artifactId>
+            <version>3.7.1</version>
+        </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
