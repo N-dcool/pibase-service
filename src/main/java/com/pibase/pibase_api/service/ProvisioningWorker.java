@@ -5,6 +5,7 @@ import com.pibase.pibase_api.entity.DatabaseInstance;
 import com.pibase.pibase_api.entity.DbStatus;
 import com.pibase.pibase_api.event.DatabaseDeleteEvent;
 import com.pibase.pibase_api.event.DatabaseProvisioningEvent;
+import com.pibase.pibase_api.event.DatabaseRestartEvent;
 import com.pibase.pibase_api.exception.ResourceNotFoundException;
 import com.pibase.pibase_api.repository.DatabaseInstanceRepository;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,12 @@ public class ProvisioningWorker {
     @Async("provisioningExecutor")
     public void onDeleteEvent(@NonNull DatabaseDeleteEvent event) {
         deleteAsync(event.dbId());
+    }
+
+    @TransactionalEventListener
+    @Async("provisioningExecutor")
+    public void onRestartEvent(@NonNull DatabaseRestartEvent event) {
+        restartAsync(event.dbId());
     }
 
     public void provisionAsync(String dbId, String plainPassword) {
@@ -94,6 +101,34 @@ public class ProvisioningWorker {
 
         } catch (Exception e) {
             log.error("Failed to delete database {}: {}", dbId, e.getMessage(), e);
+        }
+    }
+
+    public void restartAsync(String dbId) {
+        try {
+            // 1. find Db instance
+            DatabaseInstance db = dbRepository.findById(dbId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Database not found: " + dbId));
+
+            // 2. Stop and Restart container
+            log.info("[restart-{}] Stopping container...", dbId);
+            dockerService.stopContainer(db.getContainerId());
+
+            log.info("[restart-{}] Starting container...", dbId);
+            dockerService.startContainer(db.getContainerId());
+
+            // 3. update db status
+            db.setStatus(DbStatus.RUNNING);
+            dbRepository.save(db);
+
+            log.info("[restart-{}] Database restarted successfully", dbId);
+
+        } catch (Exception e) {
+            log.error("[restart-{}] Restart failed: {}", dbId, e.getMessage(), e);
+            dbRepository.findById(dbId).ifPresent(db -> {
+                db.setStatus(DbStatus.START_FAILED);
+                dbRepository.save(db);
+            });
         }
     }
 

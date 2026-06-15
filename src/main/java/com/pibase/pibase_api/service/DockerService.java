@@ -130,6 +130,24 @@ public class DockerService {
         }
     }
 
+    public void stopContainer(String containerId) {
+        try {
+            dockerClient.stopContainerCmd(containerId).withTimeout(10).exec();
+            log.info("Container {} stopped", containerId.substring(0, 12));
+        } catch (NotModifiedException ex) {
+            log.warn("Container {} already stopped", containerId.substring(0, 12));
+        }
+    }
+
+    public void startContainer(String containerId) {
+        try {
+            dockerClient.startContainerCmd(containerId).exec();
+            log.info("Container {} started", containerId.substring(0, 12));
+        } catch (NotModifiedException e) {
+            log.warn("Container {} already running", containerId.substring(0, 12));
+        }
+    }
+
     // Container Inspection
 
     public String getContainerStatus(String containerId) {

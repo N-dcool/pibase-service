@@ -42,6 +42,13 @@ public class DatabaseController {
                 .orElse(ResponseEntity.noContent().build());
     }
 
+    @PostMapping("/restart")
+    public ResponseEntity<Void> restartDatabase(@AuthenticationPrincipal UserPrincipal principal) {
+        databaseService.restartDatabase(principal.getId());
+
+        return ResponseEntity.accepted().build();
+    }
+
     @DeleteMapping("/delete")
     public ResponseEntity<Void> deleteDatabase(@AuthenticationPrincipal UserPrincipal principal) {
         databaseService.deleteDatabase(principal.getId());

@@ -23,6 +23,8 @@ public interface DatabaseInstanceRepository extends JpaRepository<DatabaseInstan
 
     List<DatabaseInstance> findByExpiresAtBeforeAndStatusNot(Instant before, DbStatus status);
 
+    List<DatabaseInstance> findByStatusAndCreatedAtBefore(DbStatus status, Instant before);
+
     @Query("SELECT d.hostPort FROM DatabaseInstance d WHERE d.engine = :engine AND d.status <> 'DELETED'")
     Set<Integer> findUsedPortsByEngine(@Param("engine") String engine);
 

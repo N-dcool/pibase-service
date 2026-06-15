@@ -6,6 +6,7 @@ import com.pibase.pibase_api.entity.DatabaseInstance;
 import com.pibase.pibase_api.entity.DbStatus;
 import com.pibase.pibase_api.event.DatabaseDeleteEvent;
 import com.pibase.pibase_api.event.DatabaseProvisioningEvent;
+import com.pibase.pibase_api.event.DatabaseRestartEvent;
 import com.pibase.pibase_api.exception.QuotaExceededException;
 import com.pibase.pibase_api.exception.ResourceNotFoundException;
 import com.pibase.pibase_api.repository.DatabaseInstanceRepository;
@@ -99,6 +100,34 @@ public class DatabaseService {
         dbRepository.save(db);
 
         // 3. Publish event - Trigger async delete @TransactionalEventListener AFTER_COMMIT
+        eventPublisher.publishEvent(new DatabaseDeleteEvent(db.getId()));
+    }
+
+    @Transactional
+    public void restartDatabase(String userId) {
+        // find db instance
+        DatabaseInstance db = dbRepository.findByUserIdAndStatusIn(userId, List.of(DbStatus.RUNNING))
+                .orElseThrow(() -> new ResourceNotFoundException("No running database found"));
+
+        if (db.getContainerId() == null) {
+            throw new ResourceNotFoundException("Container not found for database " + db.getId());
+        }
+
+        log.info("Restart request for database {} by user {}", db.getId(), userId);
+
+        db.setStatus(DbStatus.STOPPING);
+        dbRepository.save(db);
+
+        eventPublisher.publishEvent(new DatabaseRestartEvent(db.getId()));
+    }
+
+    @Transactional
+    public void forceDelete(DatabaseInstance db) {
+        log.info("Force-deleting expired database {} for user {}", db.getId(), db.getUserId());
+
+        db.setStatus(DbStatus.DELETING);
+        dbRepository.save(db);
+
         eventPublisher.publishEvent(new DatabaseDeleteEvent(db.getId()));
     }
 
