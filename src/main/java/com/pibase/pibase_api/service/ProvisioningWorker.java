@@ -1,0 +1,110 @@
+package com.pibase.pibase_api.service;
+
+import com.pibase.pibase_api.config.PiBaseProperties;
+import com.pibase.pibase_api.entity.DatabaseInstance;
+import com.pibase.pibase_api.entity.DbStatus;
+import com.pibase.pibase_api.event.DatabaseDeleteEvent;
+import com.pibase.pibase_api.event.DatabaseProvisioningEvent;
+import com.pibase.pibase_api.exception.ResourceNotFoundException;
+import com.pibase.pibase_api.repository.DatabaseInstanceRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.event.TransactionalEventListener;
+
+import java.time.Instant;
+
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class ProvisioningWorker {
+
+    private final DatabaseInstanceRepository dbRepository;
+    private final DockerService dockerService;
+    private final PiBaseProperties piBaseProperties;
+
+    @TransactionalEventListener
+    @Async("provisioningExecutor")
+    public void onProvisioningEvent(@NonNull DatabaseProvisioningEvent event) {
+        provisionAsync(event.dbId(), event.plainPassword());
+    }
+
+    @TransactionalEventListener
+    @Async("provisioningExecutor")
+    public void onDeleteEvent(@NonNull DatabaseDeleteEvent event) {
+        deleteAsync(event.dbId());
+    }
+
+    public void provisionAsync(String dbId, String plainPassword) {
+        try {
+            // 1. get DbInstance
+            DatabaseInstance db = dbRepository.findById(dbId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Database not found: " + dbId));
+
+            log.info("[Provision-{}] Starting {} container provisioning...", dbId, db.getEngine());
+
+            // 2. create and start docker container
+            String containerId = dockerService.createAndStartContainer(db, plainPassword);
+
+            // 3. wait for database readiness - 30 secs
+            dockerService.waitForReady(db.getEngine(), db.getHostPort(), plainPassword, 30);
+
+            // 4. Build connection URIs
+            String host = piBaseProperties.getPublicHost();
+            String directUri = buildDirectUri(db, plainPassword, host);
+
+            // 5. Update metadata
+            db.setContainerId(containerId);
+            db.setStatus(DbStatus.RUNNING);
+            db.setDirectUri(directUri);
+            dbRepository.save(db);
+
+            log.info("[Provision-{}] Database provisioned successfully -- {}:{}", dbId, host, db.getHostPort());
+
+        } catch (Exception e) {
+            log.error("[Provision-{}] provisioning failed: {}", dbId, e.getMessage(), e);
+            // update db metadata
+            dbRepository.findById(dbId).ifPresent(db -> {
+                db.setStatus(DbStatus.PROVISION_FAILED);
+                dbRepository.save(db);
+            });
+        }
+    }
+
+    public void deleteAsync(String dbId) {
+        try {
+            // 1. get DbInstance
+            DatabaseInstance db = dbRepository.findById(dbId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Database not found: " + dbId));
+
+            // 2. stop and remove container
+            if (db.getContainerId() != null) {
+                dockerService.stopAndRemoveContainer(db.getContainerId(), db.getVolumeName());
+            }
+
+            // 3. update metadata
+            db.setStatus(DbStatus.DELETED);
+            db.setDeletedAt(Instant.now());
+            dbRepository.save(db);
+
+            log.info("Database {} deleted successfully", dbId);
+
+        } catch (Exception e) {
+            log.error("Failed to delete database {}: {}", dbId, e.getMessage(), e);
+        }
+    }
+
+    private String buildDirectUri(DatabaseInstance db, String password, String host) {
+        return switch (db.getEngine().toLowerCase()) {
+            case "postgresql" ->
+                    String.format("postgresql://%s:%s@%s:%d/%s", db.getDbUser(), password, host, db.getHostPort(), db.getDbName());
+            case "mysql" ->
+                    String.format("mysql://%s:%s@%s:%d/%s", db.getDbUser(), password, host, db.getHostPort(), db.getDbName());
+            default -> null;
+        };
+    }
+
+}

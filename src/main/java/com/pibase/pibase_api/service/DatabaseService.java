@@ -4,13 +4,15 @@ import com.aventrix.jnanoid.jnanoid.NanoIdUtils;
 import com.pibase.pibase_api.config.PiBaseProperties;
 import com.pibase.pibase_api.entity.DatabaseInstance;
 import com.pibase.pibase_api.entity.DbStatus;
+import com.pibase.pibase_api.event.DatabaseDeleteEvent;
+import com.pibase.pibase_api.event.DatabaseProvisioningEvent;
 import com.pibase.pibase_api.exception.QuotaExceededException;
 import com.pibase.pibase_api.exception.ResourceNotFoundException;
 import com.pibase.pibase_api.repository.DatabaseInstanceRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
@@ -26,7 +28,7 @@ import java.util.Optional;
 public class DatabaseService {
 
     private final DatabaseInstanceRepository dbRepository;
-    private final DockerService dockerService;
+    private final ApplicationEventPublisher eventPublisher;
     private final PortManagerService portManager;
     private final PiBaseProperties piBaseProperties;
 
@@ -78,8 +80,8 @@ public class DatabaseService {
         log.info("Database record created: {} (engine={}, port={}, user={})", db.getId(), engine, hostPort, userId);
 
 
-        // 5. Trigger async provisioning
-        provisionAsync(db.getId(), dbPassword);
+        // 5. Publish event - Trigger async provisioning @TransactionalEventListener AFTER_COMMIT
+        eventPublisher.publishEvent(new DatabaseProvisioningEvent(db.getId(), dbPassword));
 
         return db;
     }
@@ -96,80 +98,10 @@ public class DatabaseService {
         db.setStatus(DbStatus.DELETING);
         dbRepository.save(db);
 
-        // 3. Trigger async delete
-        deleteAsync(db.getId());
+        // 3. Publish event - Trigger async delete @TransactionalEventListener AFTER_COMMIT
+        eventPublisher.publishEvent(new DatabaseDeleteEvent(db.getId()));
     }
 
-    @Async("provisioningExecutor")
-    public void provisionAsync(String dbId, String plainPassword) {
-        try {
-            // 1. get DbInstance
-            DatabaseInstance db = dbRepository.findById(dbId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Database not found: " + dbId));
-
-            log.info("[Provision-{}] Starting {} container provisioning...", dbId, db.getEngine());
-
-            // 2. create and start docker container
-            String containerId = dockerService.createAndStartContainer(db, plainPassword);
-
-            // 3. wait for database readiness - 30 secs
-            dockerService.waitForReady(db.getEngine(), db.getHostPort(), plainPassword, 30);
-
-            // 4. Build connection URIs
-            String host = piBaseProperties.getPublicHost();
-            String directUri = buildDirectUri(db, plainPassword, host);
-
-            // 5. Update metadata
-            db.setContainerId(containerId);
-            db.setStatus(DbStatus.RUNNING);
-            db.setDirectUri(directUri);
-            dbRepository.save(db);
-
-            log.info("[Provision-{}] Database provisioned successfully -- {}:{}", dbId, host, db.getHostPort());
-
-        } catch (Exception e) {
-            log.error("[Provision-{}] provisioning failed: {}", dbId, e.getMessage(), e);
-            // update db metadata
-            dbRepository.findById(dbId).ifPresent(db -> {
-                db.setStatus(DbStatus.PROVISION_FAILED);
-                dbRepository.save(db);
-            });
-        }
-    }
-
-    @Async("provisioningExecutor")
-    public void deleteAsync(String dbId) {
-        try {
-            // 1. get DbInstance
-            DatabaseInstance db = dbRepository.findById(dbId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Database not found: " + dbId));
-
-            // 2. stop and remove container
-            if (db.getContainerId() != null) {
-                dockerService.stopAndRemoveContainer(db.getContainerId(), db.getVolumeName());
-            }
-
-            // 3. update metadata
-            db.setStatus(DbStatus.DELETED);
-            db.setDeletedAt(Instant.now());
-            dbRepository.save(db);
-
-            log.info("Database {} deleted successfully", dbId);
-
-        } catch (Exception e) {
-            log.error("Failed to delete database {}: {}", dbId, e.getMessage(), e);
-        }
-    }
-
-    private String buildDirectUri(DatabaseInstance db, String password, String host) {
-        return switch (db.getEngine().toLowerCase()) {
-            case "postgresql" ->
-                    String.format("postgresql://%s:%s@%s:%d/%s", db.getDbUser(), password, host, db.getHostPort(), db.getDbName());
-            case "mysql" ->
-                    String.format("mysql://%s:%s@%s:%d/%s", db.getDbUser(), password, host, db.getHostPort(), db.getDbName());
-            default -> null;
-        };
-    }
 
     public Optional<DatabaseInstance> findActiveByUserId(String userId) {
         return dbRepository.findByUserIdAndStatusIn(userId, ACTIVE_STATUSES);
