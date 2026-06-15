@@ -238,7 +238,7 @@ public class DockerService {
                 env.add("POSTGRES_PASSWORD=" + plainPassword);
             }
             case "mysql" -> {
-                env.add("MYSQL_DB=" + db.getDbName());
+                env.add("MYSQL_DATABASE=" + db.getDbName());
                 env.add("MYSQL_USER=" + db.getDbUser());
                 env.add("MYSQL_PASSWORD=" + plainPassword);
                 env.add("MYSQL_ROOT_PASSWORD=" + plainPassword);

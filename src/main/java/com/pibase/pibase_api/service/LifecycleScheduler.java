@@ -24,7 +24,7 @@ public class LifecycleScheduler {
     // TTL cleanup every 5 min
     @Scheduled(fixedRate = 5, timeUnit = TimeUnit.MINUTES)
     public void cleanupExpiredDatabases() {
-        // 1. finded expired db
+        // 1. find expired db
         List<DatabaseInstance> expired = dbRepository.findByExpiresAtBeforeAndStatusNot(Instant.now(), DbStatus.DELETED);
         if (expired.isEmpty()) return;
 
@@ -55,7 +55,7 @@ public class LifecycleScheduler {
         log.warn("Recovery: found {} database(s) stuck in PROVISIONING", stale.size());
 
         for (DatabaseInstance db : stale) {
-            log.warn("Recovery: marking database {} as PROVISION_FALED (stuck since {})", db.getId(), db.getCreatedAt());
+            log.warn("Recovery: marking database {} as PROVISION_FAILED (stuck since {})", db.getId(), db.getCreatedAt());
             db.setStatus(DbStatus.PROVISION_FAILED);
             dbRepository.save(db);
         }

@@ -26,6 +26,7 @@ public class ProvisioningWorker {
     private final DatabaseInstanceRepository dbRepository;
     private final DockerService dockerService;
     private final PiBaseProperties piBaseProperties;
+    private final PlaygroundService playgroundService;
 
     @TransactionalEventListener
     @Async("provisioningExecutor")
@@ -86,6 +87,9 @@ public class ProvisioningWorker {
             // 1. get DbInstance
             DatabaseInstance db = dbRepository.findById(dbId)
                     .orElseThrow(() -> new ResourceNotFoundException("Database not found: " + dbId));
+
+            // evict pool
+            playgroundService.evictPool(dbId);
 
             // 2. stop and remove container
             if (db.getContainerId() != null) {

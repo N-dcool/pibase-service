@@ -108,6 +108,13 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- MySQL JDBC driver (for readiness checks)-->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

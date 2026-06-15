@@ -55,6 +55,12 @@ public class GlobalExceptionHandler {
                 .body(new ApiError(429, ex.getMessage()));
     }
 
+    @ExceptionHandler(PlaygroundException.class)
+    public ResponseEntity<ApiError> handlePlayground(PlaygroundException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiError(400, ex.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleGeneral(Exception ex) {
         log.error("Unhandled exception: {}", ex.getMessage(), ex);
