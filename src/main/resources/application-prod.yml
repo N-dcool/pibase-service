@@ -1,0 +1,26 @@
+# Production Profile
+# Activated via : SPRING_PROFILES_ACTIVE=prod
+
+spring:
+  h2:
+    console:
+      enabled: false
+      settings:
+        web-allowed-others: false
+
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+# Actuator
+management:
+  endpoint:
+    health:
+      show-details: never
+
+# CORS
+pibase:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://db.nareshchoudhary.com}

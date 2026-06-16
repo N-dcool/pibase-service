@@ -1,0 +1,35 @@
+services:
+  pibase-api:
+    image: ${DOCKERHUB_USERNAME}/pibase-api:latest
+    container_name: pibase-api
+    restart: unless-stopped
+    expose:
+      - "8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - pibase-data:/app/data
+    env_file:
+      - .env
+    environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
+      - JWT_SECRET=${JWT_SECRET}
+      - PUBLIC_HOST=${PUBLIC_HOST:-localhost}
+      - CORS_ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://db.nareshchoudhary.com}
+    labels:
+      # — Traefik routing —
+      - "traefik.enable=true"
+      - "traefik.http.routers.pibase-api.rule=Host(`db.nareshchoudhary.com`,`backend.nareshchoudhary.com`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.pibase-api.entrypoints=web"
+      - "traefik.http.routers.pibase-api.priority=93"
+      - "traefik.http.services.pibase-api.loadbalancer.server.port=8080"
+      # — Watchtower auto-update —
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - proxy
+
+volumes:
+  pibase-data:
+
+networks:
+  proxy:
+    external: true
