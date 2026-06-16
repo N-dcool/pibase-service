@@ -88,6 +88,39 @@ public class PlaygroundService {
         }
     }
 
+    public Map<String, List<Map<String, String>>> getTableSchemas(String userId) {
+        // 1. get db instance
+        DatabaseInstance db = dbRepository.findByUserIdAndStatusIn(userId, List.of(DbStatus.RUNNING))
+                .orElseThrow(() -> new ResourceNotFoundException("No running database found"));
+
+        // 2. get connection pool
+        HikariDataSource ds = getOrCreatePool(db);
+        String schemaSql = getSchemaSql(db.getEngine());
+
+        // 3. create conn and statement and run query
+        try (Connection conn = ds.getConnection();
+             Statement stmt = conn.createStatement()) {
+
+            stmt.setQueryTimeout(QUERY_TIMEOUT_SECONDS);
+            ResultSet rs = stmt.executeQuery(schemaSql);
+
+            Map<String, List<Map<String, String>>> tables = new LinkedHashMap<>();
+            while (rs.next()) {
+                String tableName = rs.getString("table_name");
+                tables.computeIfAbsent(tableName, k -> new ArrayList<>()).add(Map.of(
+                        "column_name", rs.getString("column_name"),
+                        "data_type", rs.getString("data_type"),
+                        "is_nullable", rs.getString("is_nullable")
+                ));
+            }
+            return tables;
+
+        } catch (SQLException e) {
+            log.warn("Failed to fetch table schemas for user {}: {}", userId, e.getMessage(), e);
+            throw new PlaygroundException("Failed to fetch tables: " + e.getMessage());
+        }
+    }
+
     public void evictPool(String dbId) {
         HikariDataSource ds = pools.remove(dbId);
         if (ds != null) {
@@ -180,5 +213,27 @@ public class PlaygroundService {
                 .rowCount(rows.size())
                 .ms(durationMs)
                 .build();
+    }
+
+    private String getSchemaSql(String engine) {
+        return switch (engine.toLowerCase()) {
+            case "postgresql" -> """
+                    SELECT t.table_name, c.column_name, c.data_type, c.is_nullable
+                    FROM information_schema.tables t
+                    JOIN information_schema.columns c
+                        ON t.table_name = c.table_name AND t.table_schema = c.table_schema
+                    WHERE t.table_schema = 'public' AND t.table_type = 'BASE TABLE'
+                    ORDER BY t.table_name, c.ordinal_position
+                    """;
+            case "mysql" -> """
+                    SELECT t.table_name, c.column_name, c.data_type, c.is_nullable
+                    FROM information_schema.tables t
+                    JOIN information_schema.columns c
+                        ON t.table_name = c.table_name AND t.table_schema = c.table_schema
+                    WHERE t.table_schema = DATABASE() AND t.table_type = 'BASE TABLE'
+                    ORDER BY t.table_name, c.ordinal_position
+                    """;
+            default -> throw new PlaygroundException("Unsupported engine: " + engine);
+        };
     }
 }
