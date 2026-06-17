@@ -40,8 +40,6 @@ RUN mkdir -p /app/data /app/logs && \
 # Copy application
 COPY --from=build /app/target/app.jar app.jar
 
-USER pibase
-
 # JVM tuned for Raspberry Pi
 ENV JAVA_OPTS="-Xms128m -Xmx384m \
 -XX:+UseG1GC \
@@ -54,4 +52,11 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD wget -qO- http://localhost:8080/api/health || exit 1
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+# su-exec for dropping from root -> pibase at runtime
+RUN apk add --no-cache su-exec
+
+# ENTRYPOINT: fix socket permissions at runtime, then drop to pibase
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
