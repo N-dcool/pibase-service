@@ -18,7 +18,7 @@ services:
     labels:
       # — Traefik routing —
       - "traefik.enable=true"
-      - "traefik.http.routers.pibase-api.rule=Host(`db.nareshchoudhary.com`,`backend.nareshchoudhary.com`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.pibase-api.rule=Host(`backend.nareshchoudhary.com`) && PathPrefix(`/api`)"
       - "traefik.http.routers.pibase-api.entrypoints=web"
       - "traefik.http.routers.pibase-api.priority=93"
       - "traefik.http.services.pibase-api.loadbalancer.server.port=8080"
