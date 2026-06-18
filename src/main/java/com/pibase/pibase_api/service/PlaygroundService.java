@@ -61,11 +61,11 @@ public class PlaygroundService {
              Statement stmt = conn.createStatement()) {
 
             stmt.setQueryTimeout(QUERY_TIMEOUT_SECONDS);
-            String finalSql = addLimitIfNeeded(sql);
+            stmt.setMaxRows(MAX_ROWS);
 
-            log.info("Executing query for user {}: {}", userId, finalSql);
+            log.info("Executing query for user {}: {}", userId, sql.trim());
 
-            boolean isResultSet = stmt.execute(finalSql);
+            boolean isResultSet = stmt.execute(sql.trim());
 
             log.info("Query executed successfully for user {}", userId);
 
@@ -169,21 +169,6 @@ public class PlaygroundService {
                 throw new PlaygroundException("This operation is not allowed in the playground");
             }
         }
-    }
-
-    private String addLimitIfNeeded(String sql) {
-        String trimmed = sql.trim().replaceAll(";+$", "");
-
-        // Validate SQL is not empty or just keywords
-        if (trimmed.isEmpty() || trimmed.equalsIgnoreCase("LIMIT")) {
-            throw new PlaygroundException("Invalid SQL query");
-        }
-
-        if (trimmed.toUpperCase().startsWith("SELECT") && !trimmed.toUpperCase().contains("LIMIT")) {
-            return trimmed + " LIMIT " + MAX_ROWS;
-        }
-
-        return trimmed;
     }
 
     private QueryResultResponse buildResultResponse(ResultSet rs, long durationMs) throws SQLException {
