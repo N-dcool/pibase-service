@@ -1,6 +1,7 @@
 package com.pibase.pibase_api.service;
 
 import com.pibase.pibase_api.config.PiBaseProperties;
+import com.pibase.pibase_api.entity.DatabaseEngine;
 import com.pibase.pibase_api.exception.ProvisioningException;
 import com.pibase.pibase_api.repository.DatabaseInstanceRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,33 +18,27 @@ public class PortManagerService {
     private final DatabaseInstanceRepository dbRepository;
     private final PiBaseProperties piBaseProperties;
 
-    public synchronized int allocatePort(String engine) {
+    public synchronized int allocatePort(DatabaseEngine engine) {
         PiBaseProperties.PortProperties ports = piBaseProperties.getPorts();
-        int min;
-        int max;
+        int min = switch (engine) {
+            case POSTGRESQL -> ports.getPostgresqlMin();
+            case MYSQL -> ports.getMysqlMin();
+        };
+        int max = switch (engine) {
+            case POSTGRESQL -> ports.getPostgresqlMax();
+            case MYSQL -> ports.getMysqlMax();
+        };
 
-        switch (engine.toLowerCase()) {
-            case "postgresql" -> {
-                min = ports.getPostgresqlMin();
-                max = ports.getPostgresqlMax();
-            }
-            case "mysql" -> {
-                min = ports.getMysqlMin();
-                max = ports.getMysqlMax();
-            }
-            default -> throw new IllegalArgumentException("Unsupported engine: " + engine);
-        }
-
-        Set<Integer> usedPorts = dbRepository.findUsedPortsByEngine(engine);
+        Set<Integer> usedPorts = dbRepository.findUsedPortsByEngine(engine.getId());
 
         for (int port = min; port <= max; port++) {
             if (!usedPorts.contains(port)) {
-                log.info("Allocated port {} for {} engine", port, engine);
+                log.info("Allocated port {} for {} engine", port, engine.getId());
                 return port;
             }
         }
 
-        throw new ProvisioningException("No available ports for " + engine + " (range " + min + "-" + max + " exhausted)");
+        throw new ProvisioningException("No available ports for " + engine.getId() + " (range " + min + "-" + max + " exhausted)");
     }
 
 }

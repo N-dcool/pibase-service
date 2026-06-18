@@ -21,6 +21,7 @@ public class PiBaseProperties {
     @Data
     public static class DockerProperties {
         private String host = "unix:///var/run/docker.sock";
+        private String internalHost = "localhost";
         private int maxConnections = 10;
         private int connectionTimeoutSeconds = 30;
         private int responseTimeoutSeconds = 45;

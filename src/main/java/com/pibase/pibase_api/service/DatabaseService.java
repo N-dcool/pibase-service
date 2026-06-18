@@ -2,6 +2,7 @@ package com.pibase.pibase_api.service;
 
 import com.aventrix.jnanoid.jnanoid.NanoIdUtils;
 import com.pibase.pibase_api.config.PiBaseProperties;
+import com.pibase.pibase_api.entity.DatabaseEngine;
 import com.pibase.pibase_api.entity.DatabaseInstance;
 import com.pibase.pibase_api.entity.DbStatus;
 import com.pibase.pibase_api.event.DatabaseDeleteEvent;
@@ -41,7 +42,9 @@ public class DatabaseService {
     private static final int ID_LENGTH = 5;
 
     @Transactional
-    public DatabaseInstance createDatabase(String userId, String engine) {
+    public DatabaseInstance createDatabase(String userId, String engineId) {
+        DatabaseEngine engine = DatabaseEngine.fromId(engineId);
+
         // 1. check quota
         long activeCount = dbRepository.countByUserIdAndStatusIn(userId, ACTIVE_STATUSES);
         PiBaseProperties.ProvisioningProperties prov = piBaseProperties.getProvisioning();
@@ -56,15 +59,15 @@ public class DatabaseService {
         String dbPassword = generatePassword();
         String dbId = NanoIdUtils.randomNanoId(new SecureRandom(), ID_ALPHABET, ID_LENGTH);
         String dbName = "db_" + dbId.toLowerCase();
-        String volumeName = "pibase_" + engine + "_" + dbId;
+        String volumeName = "pibase_" + engine.getId() + "_" + dbId;
         String containerName = "pibase_" + dbId;
 
         // 4. create metadata record
         DatabaseInstance db = DatabaseInstance.builder()
                 .id(dbId)
                 .userId(userId)
-                .engine(engine)
-                .engineVersion(engine.equals("postgresql") ? "15" : "8.0")
+                .engine(engine.getId())
+                .engineVersion(engine.getDefaulVersion())
                 .status(DbStatus.PROVISIONING)
                 .dbName(dbName)
                 .dbUser("dbuser")
@@ -78,7 +81,7 @@ public class DatabaseService {
                 .expiresAt(Instant.now().plus(prov.getDefaultTtlHours(), ChronoUnit.HOURS))
                 .build();
         db = dbRepository.save(db);
-        log.info("Database record created: {} (engine={}, port={}, user={})", db.getId(), engine, hostPort, userId);
+        log.info("Database record created: {} (engine={}, port={}, user={})", db.getId(), engine.getId(), hostPort, userId);
 
 
         // 5. Publish event - Trigger async provisioning @TransactionalEventListener AFTER_COMMIT

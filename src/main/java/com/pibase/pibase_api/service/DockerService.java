@@ -7,6 +7,7 @@ import com.github.dockerjava.api.exception.NotFoundException;
 import com.github.dockerjava.api.exception.NotModifiedException;
 import com.github.dockerjava.api.model.*;
 import com.pibase.pibase_api.config.PiBaseProperties;
+import com.pibase.pibase_api.entity.DatabaseEngine;
 import com.pibase.pibase_api.entity.DatabaseInstance;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +15,6 @@ import org.springframework.stereotype.Service;
 
 import java.sql.DriverManager;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -46,21 +46,20 @@ public class DockerService {
         }
     }
 
-    public String getImageForEngine(String engine) {
+    public String getImageForEngine(DatabaseEngine engine) {
         PiBaseProperties.DockerProperties.ImageProperties images = piBaseProperties.getDocker().getImages();
 
-        return switch (engine.toLowerCase()) {
-            case "postgresql" -> images.getPostgresql();
-            case "mysql" -> images.getMysql();
-            default -> throw new IllegalArgumentException("Unsupported engine: " + engine);
+        return switch (engine) {
+            case POSTGRESQL -> images.getPostgresql();
+            case MYSQL -> images.getMysql();
         };
     }
 
     // Container Lifecycle
 
     public String createAndStartContainer(DatabaseInstance db, String plainPassword) {
-
-        String image = getImageForEngine(db.getEngine());
+        DatabaseEngine engine = DatabaseEngine.fromId(db.getEngine());
+        String image = getImageForEngine(engine);
         ensureImageExists(image);
 
         String volumeName = "pibase_" + db.getEngine() + "_" + db.getId();
@@ -71,15 +70,15 @@ public class DockerService {
         log.info("Volume {} created", volumeName);
 
         // Build environment variables
-        List<String> envVar = buildEnvVars(db, plainPassword);
+        List<String> envVar = engine.buildEnvVars(db.getDbName(), db.getDbUser(), plainPassword);
 
         // Build host config
-        int containerPort = getDefaultPort(db.getEngine());
+        int containerPort = engine.getContainerPort();
         HostConfig config = HostConfig.newHostConfig()
                 .withPortBindings(new PortBinding(
                         Ports.Binding.bindPort(db.getHostPort()),
                         ExposedPort.tcp(containerPort)))
-                .withBinds(new Bind(volumeName, new Volume(getDataDir(db.getEngine()))))
+                .withBinds(new Bind(volumeName, new Volume(engine.getDataDir())))
                 .withMemory((long) db.getMemoryLimitMb() * 1024 * 1024)
                 .withRestartPolicy(RestartPolicy.unlessStoppedRestart());
 
@@ -167,24 +166,19 @@ public class DockerService {
         return "running".equalsIgnoreCase(getContainerStatus(containerId));
     }
 
-    public void waitForReady(String engine, int port, String plainPassword, int timeoutSeconds) {
-        String jdbcUrl;
+    public void waitForReady(DatabaseEngine engine, int port, String plainPassword, int timeoutSeconds) {
+        String host = piBaseProperties.getDocker().getInternalHost();
+        String jdbcUrl = engine.buildReadinessJdbcUrl(host, port);
         String user = "dbuser";
-
-        switch (engine.toLowerCase()) {
-            case "postgresql" -> jdbcUrl = "jdbc:postgresql://localhost:" + port + "/postgres";
-            case "mysql" -> jdbcUrl = "jdbc:mysql://localhost:" + port + "/mysql";
-            default -> throw new IllegalArgumentException("Unsupported engine: " + engine);
-        }
 
         Instant deadline = Instant.now().plusSeconds(timeoutSeconds);
         log.info("Waiting up to {}s for {} on port {} to become ready...",
-                timeoutSeconds, engine, port);
+                timeoutSeconds, engine.getId(), port);
 
         while (Instant.now().isBefore(deadline)) {
             try {
                 DriverManager.getConnection(jdbcUrl, user, plainPassword).close();
-                log.info("{} on port {} is ready", engine, port);
+                log.info("{} on port {} is ready", engine.getId(), port);
                 return;
             } catch (Exception e) {
                 try {
@@ -196,7 +190,7 @@ public class DockerService {
             }
         }
 
-        log.warn("{} on port {} did not become ready within {}s", engine, port, timeoutSeconds);
+        log.warn("{} on port {} did not become ready within {}s", engine.getId(), port, timeoutSeconds);
     }
 
     public String findContainerIdByName(String containerName) {
@@ -225,43 +219,4 @@ public class DockerService {
         );
 
     }
-
-    // Private helpers
-
-    private List<String> buildEnvVars(DatabaseInstance db, String plainPassword) {
-        List<String> env = new ArrayList<>();
-
-        switch (db.getEngine().toLowerCase()) {
-            case "postgresql" -> {
-                env.add("POSTGRES_DB=" + db.getDbName());
-                env.add("POSTGRES_USER=" + db.getDbUser());
-                env.add("POSTGRES_PASSWORD=" + plainPassword);
-            }
-            case "mysql" -> {
-                env.add("MYSQL_DATABASE=" + db.getDbName());
-                env.add("MYSQL_USER=" + db.getDbUser());
-                env.add("MYSQL_PASSWORD=" + plainPassword);
-                env.add("MYSQL_ROOT_PASSWORD=" + plainPassword);
-            }
-            default -> throw new IllegalArgumentException("Unsupported engine: " + db.getEngine());
-        }
-        return env;
-    }
-
-    private int getDefaultPort(String engine) {
-        return switch (engine.toLowerCase()) {
-            case "postgresql" -> 5432;
-            case "mysql" -> 3306;
-            default -> throw new IllegalArgumentException("Unsupported engine: " + engine);
-        };
-    }
-
-    private String getDataDir(String engine) {
-        return switch (engine.toLowerCase()) {
-            case "postgresql" -> "/var/lib/postgresql/data";
-            case "mysql" -> "/var/lib/mysql";
-            default -> throw new IllegalArgumentException("Unsupported engine: " + engine);
-        };
-    }
-
 }

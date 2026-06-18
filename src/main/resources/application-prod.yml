@@ -22,5 +22,7 @@ management:
 
 # CORS
 pibase:
+  docker:
+    internal-host: host.docker.internal
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:https://db.nareshchoudhary.com}
