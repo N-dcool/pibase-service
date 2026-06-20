@@ -62,9 +62,9 @@ public class ProvisioningWorker {
             DatabaseEngine engine = DatabaseEngine.fromId(db.getEngine());
             dockerService.waitForReady(engine, db.getHostPort(), plainPassword, 30);
 
-            // 4. Build connection URIs
-            String host = piBaseProperties.getPublicHost();
-            String directUri = engine.buildDirectUri(db.getDbUser(), plainPassword, host, db.getHostPort(), db.getDbName());
+            // 4. Build connection URIs (tcpHost resolves to VPS relay IP, not Cloudflare)
+            String tcpHost = piBaseProperties.getTcpHost();
+            String directUri = engine.buildDirectUri(db.getDbUser(), plainPassword, tcpHost, db.getHostPort(), db.getDbName());
 
             // 5. Update metadata
             db.setContainerId(containerId);
@@ -72,7 +72,7 @@ public class ProvisioningWorker {
             db.setDirectUri(directUri);
             dbRepository.save(db);
 
-            log.info("[Provision-{}] Database provisioned successfully -- {}:{}", dbId, host, db.getHostPort());
+            log.info("[Provision-{}] Database provisioned successfully -- {}:{}", dbId, tcpHost, db.getHostPort());
 
         } catch (Exception e) {
             log.error("[Provision-{}] provisioning failed: {}", dbId, e.getMessage(), e);
