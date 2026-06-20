@@ -3,6 +3,8 @@ package com.pibase.pibase_api.service;
 import com.pibase.pibase_api.entity.DatabaseInstance;
 import com.pibase.pibase_api.entity.DbStatus;
 import com.pibase.pibase_api.repository.DatabaseInstanceRepository;
+import com.pibase.pibase_api.repository.RefreshTokenRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -20,6 +22,7 @@ public class LifecycleScheduler {
 
     private final DatabaseInstanceRepository dbRepository;
     private final DatabaseService databaseService;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     // TTL cleanup every 5 min
     @Scheduled(fixedRate = 5, timeUnit = TimeUnit.MINUTES)
@@ -40,6 +43,17 @@ public class LifecycleScheduler {
             }
         }
 
+    }
+
+    // Refresh token cleanup: every hour
+    @Scheduled(fixedRate = 1, timeUnit = TimeUnit.HOURS)
+    @Transactional
+    public void cleanupExpiredRefreshToken() {
+        int deleted = refreshTokenRepository.deleteExpiredOrRevoked(Instant.now());
+
+        if (deleted > 0) {
+            log.info("Cleaned up {} expired/revoked refresh token", deleted);
+        }
     }
 
     // Recovery: find stale PROVISIONING record every 5 min

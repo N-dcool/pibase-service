@@ -1,6 +1,8 @@
 package com.pibase.pibase_api.service;
 
+import com.pibase.pibase_api.config.PiBaseProperties;
 import com.pibase.pibase_api.dto.response.QueryResultResponse;
+import com.pibase.pibase_api.entity.DatabaseEngine;
 import com.pibase.pibase_api.entity.DatabaseInstance;
 import com.pibase.pibase_api.entity.DbStatus;
 import com.pibase.pibase_api.exception.PlaygroundException;
@@ -23,6 +25,7 @@ import java.util.regex.Pattern;
 public class PlaygroundService {
 
     private final DatabaseInstanceRepository dbRepository;
+    private final PiBaseProperties piBaseProperties;
 
     private final ConcurrentHashMap<String, HikariDataSource> pools = new ConcurrentHashMap<>();
 
@@ -58,11 +61,11 @@ public class PlaygroundService {
              Statement stmt = conn.createStatement()) {
 
             stmt.setQueryTimeout(QUERY_TIMEOUT_SECONDS);
-            String finalSql = addLimitIfNeeded(sql);
+            stmt.setMaxRows(MAX_ROWS);
 
-            log.info("Executing query for user {}: {}", userId, finalSql);
+            log.info("Executing query for user {}: {}", userId, sql.trim());
 
-            boolean isResultSet = stmt.execute(finalSql);
+            boolean isResultSet = stmt.execute(sql.trim());
 
             log.info("Query executed successfully for user {}", userId);
 
@@ -95,7 +98,8 @@ public class PlaygroundService {
 
         // 2. get connection pool
         HikariDataSource ds = getOrCreatePool(db);
-        String schemaSql = getSchemaSql(db.getEngine());
+        DatabaseEngine engine = DatabaseEngine.fromId(db.getEngine());
+        String schemaSql = engine.getSchemaSql();
 
         // 3. create conn and statement and run query
         try (Connection conn = ds.getConnection();
@@ -134,7 +138,9 @@ public class PlaygroundService {
     private HikariDataSource getOrCreatePool(DatabaseInstance db) {
         return pools.computeIfAbsent(db.getId(), id -> {
             String password = new String(Base64.getDecoder().decode(db.getDbPassword()));
-            String jdbcUrl = buildJdbcUrl(db);
+            DatabaseEngine engine = DatabaseEngine.fromId(db.getEngine());
+            String host = piBaseProperties.getDocker().getInternalHost();
+            String jdbcUrl = engine.buildJdbcUrl(host, db.getHostPort(), db.getDbName());
 
             HikariConfig config = new HikariConfig();
             config.setJdbcUrl(jdbcUrl);
@@ -153,14 +159,6 @@ public class PlaygroundService {
         });
     }
 
-    private String buildJdbcUrl(DatabaseInstance db) {
-        return switch (db.getEngine().toLowerCase()) {
-            case "postgresql" -> String.format("jdbc:postgresql://localhost:%d/%s", db.getHostPort(), db.getDbName());
-            case "mysql" -> String.format("jdbc:mysql://localhost:%d/%s", db.getHostPort(), db.getDbName());
-            default -> throw new IllegalArgumentException("Unsupported engine: " + db.getEngine());
-        };
-    }
-
     private void validateSql(String sql) {
         if (sql == null || sql.isBlank()) {
             throw new PlaygroundException("SQL query is required");
@@ -171,21 +169,6 @@ public class PlaygroundService {
                 throw new PlaygroundException("This operation is not allowed in the playground");
             }
         }
-    }
-
-    private String addLimitIfNeeded(String sql) {
-        String trimmed = sql.trim().replaceAll(";+$", "");
-
-        // Validate SQL is not empty or just keywords
-        if (trimmed.isEmpty() || trimmed.equalsIgnoreCase("LIMIT")) {
-            throw new PlaygroundException("Invalid SQL query");
-        }
-
-        if (trimmed.toUpperCase().startsWith("SELECT") && !trimmed.toLowerCase().contains("LIMIT")) {
-            return trimmed + " LIMIT " + MAX_ROWS;
-        }
-
-        return trimmed;
     }
 
     private QueryResultResponse buildResultResponse(ResultSet rs, long durationMs) throws SQLException {
@@ -213,27 +196,5 @@ public class PlaygroundService {
                 .rowCount(rows.size())
                 .ms(durationMs)
                 .build();
-    }
-
-    private String getSchemaSql(String engine) {
-        return switch (engine.toLowerCase()) {
-            case "postgresql" -> """
-                    SELECT t.table_name, c.column_name, c.data_type, c.is_nullable
-                    FROM information_schema.tables t
-                    JOIN information_schema.columns c
-                        ON t.table_name = c.table_name AND t.table_schema = c.table_schema
-                    WHERE t.table_schema = 'public' AND t.table_type = 'BASE TABLE'
-                    ORDER BY t.table_name, c.ordinal_position
-                    """;
-            case "mysql" -> """
-                    SELECT t.table_name, c.column_name, c.data_type, c.is_nullable
-                    FROM information_schema.tables t
-                    JOIN information_schema.columns c
-                        ON t.table_name = c.table_name AND t.table_schema = c.table_schema
-                    WHERE t.table_schema = DATABASE() AND t.table_type = 'BASE TABLE'
-                    ORDER BY t.table_name, c.ordinal_position
-                    """;
-            default -> throw new PlaygroundException("Unsupported engine: " + engine);
-        };
     }
 }

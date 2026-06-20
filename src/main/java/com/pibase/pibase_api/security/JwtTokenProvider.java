@@ -80,6 +80,10 @@ public class JwtTokenProvider {
                 .getPayload();
     }
 
+    public String getTokenType(String token) {
+        return parseToken(token).get("type", String.class);
+    }
+
     public String getUserIdFromToken(String token) {
         return parseToken(token).getSubject();
     }

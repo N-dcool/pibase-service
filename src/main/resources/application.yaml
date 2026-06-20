@@ -46,6 +46,7 @@ pibase:
   public-host: ${PUBLIC_HOST:localhost}
   docker:
     host: ${DOCKER_HOST:unix:///var/run/docker.sock}
+    internal-host: ${DOCKER_INTERNAL_HOST:localhost}
     max-connections: 10
     connection-timeout-seconds: 30
     response-timeout-seconds: 45

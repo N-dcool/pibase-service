@@ -1,6 +1,7 @@
 package com.pibase.pibase_api.service;
 
 import com.pibase.pibase_api.config.PiBaseProperties;
+import com.pibase.pibase_api.entity.DatabaseEngine;
 import com.pibase.pibase_api.entity.DatabaseInstance;
 import com.pibase.pibase_api.entity.DbStatus;
 import com.pibase.pibase_api.event.DatabaseDeleteEvent;
@@ -58,11 +59,12 @@ public class ProvisioningWorker {
             String containerId = dockerService.createAndStartContainer(db, plainPassword);
 
             // 3. wait for database readiness - 30 secs
-            dockerService.waitForReady(db.getEngine(), db.getHostPort(), plainPassword, 30);
+            DatabaseEngine engine = DatabaseEngine.fromId(db.getEngine());
+            dockerService.waitForReady(engine, db.getHostPort(), plainPassword, 30);
 
             // 4. Build connection URIs
             String host = piBaseProperties.getPublicHost();
-            String directUri = buildDirectUri(db, plainPassword, host);
+            String directUri = engine.buildDirectUri(db.getDbUser(), plainPassword, host, db.getHostPort(), db.getDbName());
 
             // 5. Update metadata
             db.setContainerId(containerId);
@@ -134,16 +136,6 @@ public class ProvisioningWorker {
                 dbRepository.save(db);
             });
         }
-    }
-
-    private String buildDirectUri(DatabaseInstance db, String password, String host) {
-        return switch (db.getEngine().toLowerCase()) {
-            case "postgresql" ->
-                    String.format("postgresql://%s:%s@%s:%d/%s", db.getDbUser(), password, host, db.getHostPort(), db.getDbName());
-            case "mysql" ->
-                    String.format("mysql://%s:%s@%s:%d/%s", db.getDbUser(), password, host, db.getHostPort(), db.getDbName());
-            default -> null;
-        };
     }
 
 }

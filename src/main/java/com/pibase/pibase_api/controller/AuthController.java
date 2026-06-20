@@ -1,6 +1,7 @@
 package com.pibase.pibase_api.controller;
 
 import com.pibase.pibase_api.dto.request.LoginRequest;
+import com.pibase.pibase_api.dto.request.RefreshTokenRequest;
 import com.pibase.pibase_api.dto.request.RegisterRequest;
 import com.pibase.pibase_api.dto.response.AuthResponse;
 import com.pibase.pibase_api.security.UserPrincipal;
@@ -31,6 +32,18 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<AuthResponse> logout(@Valid @RequestBody RefreshTokenRequest request) {
+        authService.logout(request.refreshToken());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        AuthResponse response = authService.refreshAccessToken(request.refreshToken());
         return ResponseEntity.ok(response);
     }
 
