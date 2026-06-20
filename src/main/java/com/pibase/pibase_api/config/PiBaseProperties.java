@@ -13,6 +13,7 @@ import java.time.Duration;
 public class PiBaseProperties {
 
     private String publicHost = "localhost";
+    private String tcpHost = "localhost";
     private DockerProperties docker = new DockerProperties();
     private JwtProperties jwt = new JwtProperties();
     private ProvisioningProperties provisioning = new ProvisioningProperties();
