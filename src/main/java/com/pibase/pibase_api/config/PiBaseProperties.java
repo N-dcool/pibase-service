@@ -63,8 +63,8 @@ public class PiBaseProperties {
 
     @Data
     public static class HaProxyProperties {
-        private String mapFile = "/opt/pibase/haproxy/maps/db-backends.map";
-        private String backendsDir = "/opt/pibase/haproxy/backends.d";
+        private String mapFile = "/opt/pibase/haproxy/maps/db-ports.map";
+        private String socketPath = "/opt/pibase/haproxy/run/haproxy.sock";
         private String containerName = "pibase-haproxy";
         private boolean enabled = false;
     }
