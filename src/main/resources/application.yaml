@@ -69,7 +69,7 @@ pibase:
     mysql-min: 5533
     mysql-max: 5582
   haproxy:
-    map-file: ${HAPROXY_MAP_FILE:/opt/pibase/haproxy/maps/db-backends.map}
-    backends-dir: ${HAPROXY_BACKENDS_DIR:/opt/pibase/haproxy/backends.d}
+    map-file: ${HAPROXY_MAP_FILE:/opt/pibase/haproxy/maps/db-ports.map}
+    socket-path: ${HAPROXY_SOCKET_PATH:/opt/pibase/haproxy/run/haproxy.sock}
     container-name: pibase-haproxy
     enabled: ${HAPROXY_ENABLED:false}
