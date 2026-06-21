@@ -31,7 +31,7 @@ WORKDIR /app
 
 # Create non-root user with fixed UID/GID (must match host file ownership)
 RUN addgroup -g 1500 -S pibase && \
-    adduser -g 1500 -S pibase -G pibase
+    adduser -u 1500 -S pibase -G pibase
 
 # Application directories
 RUN mkdir -p /app/data /app/logs && \

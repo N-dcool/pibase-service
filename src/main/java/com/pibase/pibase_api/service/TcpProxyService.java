@@ -24,7 +24,7 @@ public class TcpProxyService {
     private final PiBaseProperties piBaseProperties;
 
     // HAProxy knows the map by this container-internal path
-    private static final String HAPROXY_MAP_REF = "/etc/haproxy/maps/dp-ports.map";
+    private static final String HAPROXY_MAP_REF = "/etc/haproxy/maps/db-ports.map";
 
     /**
      * Register a database in HAProxy's port map.
