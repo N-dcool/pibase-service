@@ -238,7 +238,10 @@ public class TcpProxyService {
                     "haproxy",
                     "-c",
                     "-f",
-                    "/usr/local/etc/haproxy/haproxy.cfg").start();
+                    "/usr/local/etc/haproxy/haproxy.cfg",
+                    "-f",
+                    "/etc/haproxy/backends.d/"
+            ).start();
 
             if (validate.waitFor() != 0) {
                 log.error(
