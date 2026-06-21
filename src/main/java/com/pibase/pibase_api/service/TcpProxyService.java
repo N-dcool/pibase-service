@@ -13,6 +13,7 @@ import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -126,6 +127,8 @@ public class TcpProxyService {
     private void atomicWrite(Path target, String content) throws IOException {
         Path temp = Files.createTempFile(target.getParent(), target.getFileName().toString(), ".tmp");
         Files.writeString(temp, content);
+        // Ensure world-readable (644) so HAProxy (UID 99) can read the map
+        Files.setPosixFilePermissions(temp, PosixFilePermissions.fromString("rw-r--r--"));
         Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
     }
 
