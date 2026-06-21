@@ -12,11 +12,14 @@ import com.pibase.pibase_api.repository.DatabaseInstanceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.Instant;
+import java.util.List;
 
 
 @Service
@@ -28,6 +31,7 @@ public class ProvisioningWorker {
     private final DockerService dockerService;
     private final PiBaseProperties piBaseProperties;
     private final PlaygroundService playgroundService;
+    private final TcpProxyService tcpProxyService;
 
     @TransactionalEventListener
     @Async("provisioningExecutor")
@@ -66,11 +70,18 @@ public class ProvisioningWorker {
             String tcpHost = piBaseProperties.getTcpHost();
             String directUri = engine.buildDirectUri(db.getDbUser(), plainPassword, tcpHost, db.getHostPort(), db.getDbName());
 
+            // Build SNI URI
+            String sniUri = engine.buildSniUri(db.getDbUser(), plainPassword, db.getSniHostname(), db.getDbName());
+
             // 5. Update metadata
             db.setContainerId(containerId);
             db.setStatus(DbStatus.RUNNING);
+            db.setSniUri(sniUri);
             db.setDirectUri(directUri);
             dbRepository.save(db);
+
+            // Register with HAProxy
+            tcpProxyService.addDatabase(db);
 
             log.info("[Provision-{}] Database provisioned successfully -- {}:{}", dbId, tcpHost, db.getHostPort());
 
@@ -93,6 +104,9 @@ public class ProvisioningWorker {
             // evict pool
             playgroundService.evictPool(dbId);
 
+            // Remove from HAProxy before stopping container
+            tcpProxyService.removeDatabase(db);
+
             // 2. stop and remove container
             if (db.getContainerId() != null) {
                 dockerService.stopAndRemoveContainer(db.getContainerId(), db.getVolumeName());
@@ -108,6 +122,13 @@ public class ProvisioningWorker {
         } catch (Exception e) {
             log.error("Failed to delete database {}: {}", dbId, e.getMessage(), e);
         }
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void onStartup() {
+        List<DatabaseInstance> running = dbRepository.findByStatus(DbStatus.RUNNING);
+        tcpProxyService.syncAll(running);
+        log.info("[startup] TCP proxy synced with {} active databases", running.size());
     }
 
     public void restartAsync(String dbId) {

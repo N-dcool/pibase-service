@@ -68,3 +68,8 @@ pibase:
     postgresql-max: 5532
     mysql-min: 5533
     mysql-max: 5582
+  haproxy:
+    map-file: ${HAPROXY_MAP_FILE:/opt/pibase/haproxy/maps/db-backends.map}
+    backends-dir: ${HAPROXY_BACKENDS_DIR:/opt/pibase/haproxy/backends.d}
+    container-name: pibase-haproxy
+    enabled: ${HAPROXY_ENABLED:false}

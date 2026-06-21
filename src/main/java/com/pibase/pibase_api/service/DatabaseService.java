@@ -23,6 +23,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -61,6 +62,7 @@ public class DatabaseService {
         String dbName = "db_" + dbId.toLowerCase();
         String volumeName = "pibase_" + engine.getId() + "_" + dbId;
         String containerName = "pibase_" + dbId;
+        String sniHostname = "db-" + UUID.randomUUID().toString().substring(0, 8);
 
         // 4. create metadata record
         DatabaseInstance db = DatabaseInstance.builder()
@@ -75,6 +77,7 @@ public class DatabaseService {
                 .hostPort(hostPort)
                 .containerName(containerName)
                 .volumeName(volumeName)
+                .sniHostname(sniHostname)
                 .memoryLimitMb(prov.getDefaultMemoryMb())
                 .storageLimitMb(prov.getDefaultStorageMb())
                 .ttlHours(prov.getDefaultTtlHours())
