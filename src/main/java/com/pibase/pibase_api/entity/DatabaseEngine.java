@@ -103,7 +103,7 @@ public enum DatabaseEngine {
 
     public String buildSniUri(String user, String password, String sniHostname, String dbName) {
         String schema = this == POSTGRESQL ? "postgresql" : "mysql";
-        String sqlParam = this == POSTGRESQL ? "?sslmode=require" : "?useSSL=true";
+        String sqlParam = this == POSTGRESQL ? "?sslmode=require&sslnegotiation=direct" : "?useSSL=true";
         return String.format("%s://%s:%s@%s.db.nareshchoudhary.com:5432/%s%s", schema, user, password, sniHostname, dbName, sqlParam);
     }
 
