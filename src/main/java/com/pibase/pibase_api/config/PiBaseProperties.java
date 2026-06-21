@@ -18,6 +18,7 @@ public class PiBaseProperties {
     private JwtProperties jwt = new JwtProperties();
     private ProvisioningProperties provisioning = new ProvisioningProperties();
     private PortProperties ports = new PortProperties();
+    private HaProxyProperties haproxy = new HaProxyProperties();
 
     @Data
     public static class DockerProperties {
@@ -58,5 +59,13 @@ public class PiBaseProperties {
         private int postgresqlMax = 5532;
         private int mysqlMin = 5533;
         private int mysqlMax = 5582;
+    }
+
+    @Data
+    public static class HaProxyProperties {
+        private String mapFile = "/opt/pibase/haproxy/maps/db-backends.map";
+        private String backendsDir = "/opt/pibase/haproxy/backends.d";
+        private String containerName = "pibase-haproxy";
+        private boolean enabled = false;
     }
 }

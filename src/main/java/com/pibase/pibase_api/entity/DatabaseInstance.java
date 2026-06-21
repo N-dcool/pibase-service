@@ -66,6 +66,12 @@ public class DatabaseInstance {
     @Column(name = "direct_uri", length = 500)
     private String directUri;
 
+    @Column(name = "sni_hostname", length = 20, unique = true)
+    private String sniHostname;
+
+    @Column(name = "sni_uri", length = 500)
+    private String sniUri;
+
     @Column(name = "pooled_uri", length = 500)
     private String pooledUri;
 
