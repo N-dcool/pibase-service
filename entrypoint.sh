@@ -17,5 +17,6 @@ if [ -S "$HAPROXY_SOCK" ]; then
   HA_GID=$(stat -c '%g' "$HAPROXY_SOCK")
   addgroup -g "$HA_GID" haproxy 2>/dev/null || true
   addgroup pibase haproxy 2>/dev/null || true
+fi
 
 exec su-exec pibase java $JAVA_OPTS -jar app.jar
